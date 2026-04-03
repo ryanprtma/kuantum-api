@@ -1,6 +1,7 @@
 import * as jobRepo from './job.repository.js';
 import type { JobPatch } from './job.repository.js';
 import { AppError } from '../../shared/errors.js';
+import * as jobApplicantRepo from '../job-applicant/job-applicant.repository.js';
 
 export async function listJobs() {
   return jobRepo.findAllWithCompany();
@@ -46,4 +47,9 @@ export async function updateJob(id: string, body: JobPatch) {
   await getJobById(id);
   await jobRepo.updateById(id, body || {});
   return jobRepo.findByIdWithCompany(id);
+}
+
+export async function listApplicationsForJob(jobId: string) {
+  await getJobById(jobId);
+  return jobApplicantRepo.listByJobId(jobId);
 }

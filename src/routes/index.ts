@@ -10,6 +10,8 @@ import jobRoutes from './job.routes.js';
 import sessionRoutes from './session.routes.js';
 import agentRoutes from './agent.routes.js';
 import candidateRoutes from './candidate.routes.js';
+import accessCodeRoutes from './access-code.routes.js';
+import jobApplicantRoutes from './job-applicant.routes.js';
 
 const root = Router();
 
@@ -23,6 +25,8 @@ root.use(companyRoutes);
 root.use(jobRoutes);
 root.use(sessionRoutes);
 root.use(agentRoutes);
+root.use(accessCodeRoutes);
 root.use(candidateRoutes);
+root.use(jobApplicantRoutes);
 
 export default root;

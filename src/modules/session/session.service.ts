@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import * as sessionRepo from './session.repository.js';
+import * as accessCodeService from '../access-code/access-code.service.js';
 import { AppError } from '../../shared/errors.js';
 import {
   INTERVIEW_REDIRECT_BASE_URL,
@@ -11,15 +12,15 @@ function defaultQuestionsFromJobTitle(title: string) {
   const t = (title || '').toLowerCase();
   if (t.includes('engineer') || t.includes('developer')) {
     return [
-      'Walk me through a complex architectural decision you made recently.',
-      'How do you handle disagreement with a senior stakeholder on technology trade-offs?',
-      'Describe a time you optimized a legacy system for scalability.',
+      'Ceritakan keputusan arsitektur kompleks yang baru-baru ini Anda ambil.',
+      'Bagaimana Anda menangani perbedaan pendapat dengan stakeholder senior terkait trade-off teknologi?',
+      'Ceritakan saat Anda mengoptimalkan sistem legacy untuk skalabilitas.',
     ];
   }
   return [
-    'What motivates you in this role and company?',
-    'Describe a challenging project and your contribution.',
-    'How do you prioritize when deadlines conflict?',
+    'Apa yang memotivasi Anda untuk peran dan perusahaan ini?',
+    'Ceritakan proyek yang menantang dan kontribusi Anda.',
+    'Bagaimana Anda menentukan prioritas saat tenggat waktu saling bertabrakan?',
   ];
 }
 
@@ -39,11 +40,34 @@ function asStrArr(v: unknown): string[] {
   return Array.isArray(v) ? v.map(String) : [];
 }
 
+function ensureHttpScheme(url: string): string {
+  if (/^https?:\/\//i.test(url)) return url;
+  return `https://${url.replace(/^\/+/, '')}`;
+}
+
+function buildExternalInterviewUrl(template: string, accessCodeId: string): string {
+  const codeId = encodeURIComponent(accessCodeId);
+  const internalToken = encodeURIComponent(EXTERNAL_INTERVIEW_INTERNAL_TOKEN || '');
+  const preparedTemplate = ensureHttpScheme(template.trim());
+
+  const replaced = preparedTemplate
+    .replace(/\{accessCode\}/g, codeId)
+    .replace(/\{sessionId\}/g, codeId)
+    .replace(/\{internalToken\}/g, internalToken);
+
+  if (replaced !== preparedTemplate) {
+    return replaced;
+  }
+
+  const [baseUrl, hashFragment] = replaced.split('#', 2);
+  const normalizedBase = baseUrl.replace(/[?&]+$/, '');
+  const separator = normalizedBase.includes('?') ? '&' : '?';
+  return `${normalizedBase}${separator}accesCode=${codeId}${hashFragment ? `#${hashFragment}` : ''}`;
+}
+
 export async function createSession(body: Record<string, unknown>) {
   const {
-    jobId,
-    candidateName,
-    candidateEmail,
+    jobApplicantId,
     agentInstruction,
     agentPersona,
     interviewLengthMinutes,
@@ -51,13 +75,18 @@ export async function createSession(body: Record<string, unknown>) {
     dynamicProbing,
     questions,
   } = body;
-  if (typeof jobId !== 'string' || !jobId) {
-    throw new AppError('jobId is required', 400);
+  if (typeof jobApplicantId !== 'string' || !jobApplicantId) {
+    throw new AppError('jobApplicantId is required', 400);
   }
 
-  const job = await sessionRepo.findJobWithCompanyName(jobId);
+  const existing = await sessionRepo.findSessionIdByJobApplicantId(jobApplicantId);
+  if (existing) {
+    throw new AppError('Interview session already exists for this application', 409);
+  }
+
+  const job = await sessionRepo.findJobApplicantContext(jobApplicantId);
   if (!job) {
-    throw new AppError('Job not found', 404);
+    throw new AppError('Application not found', 404);
   }
 
   const title = asStr(job.title) ?? '';
@@ -101,12 +130,10 @@ export async function createSession(body: Record<string, unknown>) {
   const interviewId = randomUUID();
   const token = randomUUID();
   const session = await sessionRepo.insertSession({
+    jobApplicantId,
     candidateId,
     interviewId,
     token,
-    jobId,
-    candidateName: typeof candidateName === 'string' ? candidateName.trim() || null : null,
-    candidateEmail: typeof candidateEmail === 'string' ? candidateEmail.trim() || null : null,
     agentInstruction: resolvedInstruction,
     agentPersona: resolvedPersona,
     interviewLengthMinutes: resolvedLength,
@@ -118,18 +145,24 @@ export async function createSession(body: Record<string, unknown>) {
   const s = session as { id: string };
   const interviewUrl = `${INTERVIEW_REDIRECT_BASE_URL}/interview/${s.id}`;
 
+  const accessCode = await accessCodeService.getOrCreateAccessCodeForSession(s.id);
+
   let externalInterviewUrl: string | null = null;
   if (EXTERNAL_INTERVIEW_REDIRECT_URL_TEMPLATE) {
-    externalInterviewUrl = EXTERNAL_INTERVIEW_REDIRECT_URL_TEMPLATE.replace(
-      /\{sessionId\}/g,
-      encodeURIComponent(s.id)
-    ).replace(
-      /\{internalToken\}/g,
-      encodeURIComponent(EXTERNAL_INTERVIEW_INTERNAL_TOKEN || '')
-    );
+    externalInterviewUrl = buildExternalInterviewUrl(EXTERNAL_INTERVIEW_REDIRECT_URL_TEMPLATE, accessCode.id);
   }
 
-  return { ...session, interviewUrl, externalInterviewUrl };
+  return { ...session, interviewUrl, externalInterviewUrl, accessCode };
+}
+
+export async function getSessionUrlsForExistingSession(sessionId: string) {
+  const accessCode = await accessCodeService.getOrCreateAccessCodeForSession(sessionId);
+  const interviewUrl = `${INTERVIEW_REDIRECT_BASE_URL}/interview/${sessionId}`;
+  let externalInterviewUrl: string | null = null;
+  if (EXTERNAL_INTERVIEW_REDIRECT_URL_TEMPLATE) {
+    externalInterviewUrl = buildExternalInterviewUrl(EXTERNAL_INTERVIEW_REDIRECT_URL_TEMPLATE, accessCode.id);
+  }
+  return { interviewUrl, externalInterviewUrl, accessCode };
 }
 
 export async function listSessions() {

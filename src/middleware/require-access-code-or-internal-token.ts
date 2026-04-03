@@ -12,9 +12,11 @@ function readInternalToken(req: Request): string | null {
 }
 
 /**
- * Redirect interview: token internal ATAU session code / UUID akses valid (alur applicant).
+ * Untuk endpoint yang dipakai external flow:
+ * - Jika internal token valid, lewati (untuk recruiter/internal testing).
+ * - Jika tidak, verifikasi `sessionId` path sebagai `access_codes.session_code`.
  */
-export function requireUserOrExternalInterviewToken(req: Request, _res: Response, next: NextFunction): void {
+export function requireAccessCodeOrInternalToken(req: Request, _res: Response, next: NextFunction): void {
   const expected = EXTERNAL_INTERVIEW_INTERNAL_TOKEN;
   const got = readInternalToken(req);
   if (expected && got && got === expected) {
@@ -23,21 +25,21 @@ export function requireUserOrExternalInterviewToken(req: Request, _res: Response
     return;
   }
 
-  const candidateId = req.params.candidateId;
-  if (!candidateId) {
+  const sessionCode = req.params.sessionId;
+  if (!sessionCode) {
     next(new AppError('Unauthorized', 401));
     return;
   }
 
   accessCodeRepo
-    .findValidAccessForSessionRouteParam(candidateId)
+    .findValidAccessForSessionRouteParam(sessionCode)
     .then((row) => {
       if (!row) {
-        next(new AppError('Unauthorized', 401));
+        next(new AppError('Access code not valid or expired', 404));
         return;
       }
       next();
     })
-    .catch(next);
+    .catch((err) => next(err));
 }
 

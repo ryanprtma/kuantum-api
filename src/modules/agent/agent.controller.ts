@@ -18,7 +18,9 @@ export async function postTranscription(req: Request, res: Response): Promise<vo
 
 /** By interview session id (candidate row / pipeline id). Requires X-User-Id. */
 export async function getInstructionSetBySession(req: Request, res: Response): Promise<void> {
-  const payload = await agentService.getInstructionSetBySessionId(req.params.sessionId);
+  const applicationIdRaw = req.query.applicationId;
+  const applicationId = typeof applicationIdRaw === 'string' ? applicationIdRaw : undefined;
+  const payload = await agentService.getInstructionSetBySessionId(req.params.sessionId, applicationId);
   res.json(payload);
 }
 

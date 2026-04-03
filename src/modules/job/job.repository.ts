@@ -136,7 +136,8 @@ export async function jobStatsWithSessions() {
             COUNT(s.id)::int AS candidate_count,
             COALESCE(AVG(s.overall_score) FILTER (WHERE s.overall_score IS NOT NULL), 0)::float AS avg_score
      FROM jobs j
-     LEFT JOIN interview_sessions s ON s.job_id = j.id
+     LEFT JOIN job_applicants a ON a.job_id = j.id
+     LEFT JOIN interview_sessions s ON s.job_applicant_id = a.id
      GROUP BY j.id
      ORDER BY candidate_count DESC, j.created_at DESC
      LIMIT 6`

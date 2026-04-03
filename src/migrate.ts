@@ -11,16 +11,17 @@ async function migrate(): Promise<void> {
   await pool.query(readFileSync(schemaPath, 'utf8'));
 
   const migrationsDir = join(rootSql, 'migrations');
+  let files: string[];
   try {
-    const files = readdirSync(migrationsDir)
+    files = readdirSync(migrationsDir)
       .filter((f) => f.endsWith('.sql'))
       .sort();
-    for (const f of files) {
-      await pool.query(readFileSync(join(migrationsDir, f), 'utf8'));
-      console.log(`Applied migration: ${f}`);
-    }
   } catch {
-    // migrations folder optional
+    files = [];
+  }
+  for (const f of files) {
+    await pool.query(readFileSync(join(migrationsDir, f), 'utf8'));
+    console.log(`Applied migration: ${f}`);
   }
 
   console.log('Migration OK');

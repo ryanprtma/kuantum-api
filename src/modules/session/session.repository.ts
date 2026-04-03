@@ -1,21 +1,33 @@
 import { query } from '../../config/database.js';
 
-export async function findJobWithCompanyName(jobId: string): Promise<Record<string, unknown> | null> {
+export async function findJobApplicantContext(jobApplicantId: string): Promise<Record<string, unknown> | null> {
   const { rows } = await query(
-    `SELECT j.*, c.name AS company_name FROM jobs j
-     JOIN companies c ON c.id = j.company_id WHERE j.id = $1`,
-    [jobId]
+    `SELECT j.*, c.name AS company_name,
+            u.name AS user_name, u.email AS user_email,
+            a.id::text AS application_id
+     FROM job_applicants a
+     JOIN jobs j ON j.id = a.job_id
+     JOIN companies c ON c.id = j.company_id
+     JOIN users u ON u.id = a.user_id
+     WHERE a.id = $1::uuid`,
+    [jobApplicantId]
   );
   return (rows[0] as Record<string, unknown>) ?? null;
 }
 
+export async function findSessionIdByJobApplicantId(jobApplicantId: string): Promise<string | null> {
+  const { rows } = await query<{ id: string }>(
+    `SELECT id::text AS id FROM interview_sessions WHERE job_applicant_id = $1::uuid`,
+    [jobApplicantId]
+  );
+  return rows[0]?.id ?? null;
+}
+
 export async function insertSession(params: {
+  jobApplicantId: string;
   candidateId: string;
   interviewId: string;
   token: string;
-  jobId: string;
-  candidateName: string | null;
-  candidateEmail: string | null;
   agentInstruction: string;
   agentPersona: string;
   interviewLengthMinutes: number;
@@ -25,19 +37,18 @@ export async function insertSession(params: {
 }) {
   const { rows } = await query(
     `INSERT INTO interview_sessions (
-      candidate_id, interview_id, token, job_id, candidate_name, candidate_email,
+      job_applicant_id, candidate_id, interview_id, token,
       agent_instruction, agent_persona, interview_length_minutes,
       focus_areas, dynamic_probing, questions, status
     ) VALUES (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12::jsonb, 'invited'
+      $1::uuid, $2::uuid, $3::uuid, $4::uuid,
+      $5, $6, $7, $8::jsonb, $9, $10::jsonb, 'invited'
     ) RETURNING *`,
     [
+      params.jobApplicantId,
       params.candidateId,
       params.interviewId,
       params.token,
-      params.jobId,
-      params.candidateName,
-      params.candidateEmail,
       params.agentInstruction,
       params.agentPersona,
       params.interviewLengthMinutes,
@@ -53,7 +64,8 @@ export async function listWithJobAndCompany() {
   const { rows } = await query(
     `SELECT s.*, j.title AS job_title, c.name AS company_name
      FROM interview_sessions s
-     JOIN jobs j ON j.id = s.job_id
+     JOIN job_applicants a ON a.id = s.job_applicant_id
+     JOIN jobs j ON j.id = a.job_id
      JOIN companies c ON c.id = j.company_id
      ORDER BY s.created_at DESC`
   );
@@ -62,13 +74,15 @@ export async function listWithJobAndCompany() {
 
 const instructionRowSelect = `SELECT s.id AS session_id, s.token, s.agent_instruction, s.agent_persona,
             s.interview_length_minutes, s.focus_areas, s.dynamic_probing, s.questions,
-            s.candidate_name, s.candidate_email, s.status, s.candidate_id, s.interview_id, s.expires_at,
+            u.name AS candidate_name, u.email AS candidate_email, s.status, s.candidate_id, s.interview_id, s.expires_at,
             j.id AS job_id, j.title AS job_title, j.department, j.employment_type, j.description,
             j.requirements,
             c.id AS company_id, c.name AS company_name, c.industry AS company_industry
      FROM interview_sessions s
-     JOIN jobs j ON j.id = s.job_id
-     JOIN companies c ON c.id = j.company_id`;
+     JOIN job_applicants a ON a.id = s.job_applicant_id
+     JOIN jobs j ON j.id = a.job_id
+     JOIN companies c ON c.id = j.company_id
+     JOIN users u ON u.id = a.user_id`;
 
 export async function findInstructionRowByToken(token: string) {
   const { rows } = await query(
@@ -135,11 +149,14 @@ export async function findResultsDetailById(sessionId: string) {
   const { rows } = await query(
     `SELECT s.*, j.id AS resolved_job_id, j.title AS job_title, j.department, j.employment_type, j.description,
             c.name AS company_name, c.industry AS company_industry,
+            u.name AS candidate_name, u.email AS candidate_email,
             (SELECT t.transcript_text FROM transcriptions t WHERE t.session_id = s.id ORDER BY t.created_at DESC LIMIT 1) AS latest_transcript,
             (SELECT t.ai_analysis FROM transcriptions t WHERE t.session_id = s.id ORDER BY t.created_at DESC LIMIT 1) AS latest_analysis
      FROM interview_sessions s
-     JOIN jobs j ON j.id = s.job_id
+     JOIN job_applicants a ON a.id = s.job_applicant_id
+     JOIN jobs j ON j.id = a.job_id
      JOIN companies c ON c.id = j.company_id
+     JOIN users u ON u.id = a.user_id
      WHERE s.id = $1::uuid`,
     [sessionId]
   );
@@ -148,9 +165,11 @@ export async function findResultsDetailById(sessionId: string) {
 
 export async function listPipelineSamples(status: string, limit = 5) {
   const { rows } = await query(
-    `SELECT s.id, s.candidate_name, s.status, j.title AS job_title, s.overall_score
+    `SELECT s.id, u.name AS candidate_name, s.status, j.title AS job_title, s.overall_score
      FROM interview_sessions s
-     JOIN jobs j ON j.id = s.job_id
+     JOIN job_applicants a ON a.id = s.job_applicant_id
+     JOIN jobs j ON j.id = a.job_id
+     JOIN users u ON u.id = a.user_id
      WHERE s.status = $1
      ORDER BY s.created_at DESC
      LIMIT $2`,
@@ -161,10 +180,12 @@ export async function listPipelineSamples(status: string, limit = 5) {
 
 export async function listRecentActivity(limit = 6) {
   const { rows } = await query(
-    `SELECT s.candidate_name, j.title AS job_title, t.created_at AS at
+    `SELECT u.name AS candidate_name, j.title AS job_title, t.created_at AS at
      FROM transcriptions t
      JOIN interview_sessions s ON s.id = t.session_id
-     JOIN jobs j ON j.id = s.job_id
+     JOIN job_applicants a ON a.id = s.job_applicant_id
+     JOIN jobs j ON j.id = a.job_id
+     JOIN users u ON u.id = a.user_id
      ORDER BY t.created_at DESC
      LIMIT $1`,
     [limit]
@@ -186,12 +207,14 @@ export async function countSessionsTotal(): Promise<number> {
 
 export async function listCompletedForJob(jobId: string, limit = 12) {
   const { rows } = await query(
-    `SELECT s.id, s.candidate_name, s.status, s.overall_score, s.created_at,
+    `SELECT s.id, u.name AS candidate_name, s.status, s.overall_score, s.created_at,
             j.title AS job_title,
             (SELECT t.ai_analysis FROM transcriptions t WHERE t.session_id = s.id ORDER BY t.created_at DESC LIMIT 1) AS last_analysis
      FROM interview_sessions s
-     JOIN jobs j ON j.id = s.job_id
-     WHERE s.job_id = $1::uuid AND s.status = 'completed'
+     JOIN job_applicants a ON a.id = s.job_applicant_id
+     JOIN jobs j ON j.id = a.job_id
+     JOIN users u ON u.id = a.user_id
+     WHERE j.id = $1::uuid AND s.status = 'completed'
      ORDER BY s.overall_score DESC NULLS LAST, s.created_at DESC
      LIMIT $2`,
     [jobId, limit]
@@ -201,12 +224,14 @@ export async function listCompletedForJob(jobId: string, limit = 12) {
 
 export async function listForCandidates() {
   const { rows } = await query(
-    `SELECT s.id, s.token, s.candidate_name AS name, s.candidate_email AS email,
+    `SELECT s.id, s.token, u.name, u.email,
             s.status, s.created_at, s.overall_score, s.candidate_id, s.interview_id, s.expires_at,
             j.title AS job_title,
             (SELECT t.ai_analysis FROM transcriptions t WHERE t.session_id = s.id ORDER BY t.created_at DESC LIMIT 1) AS last_analysis
      FROM interview_sessions s
-     JOIN jobs j ON j.id = s.job_id
+     JOIN job_applicants a ON a.id = s.job_applicant_id
+     JOIN jobs j ON j.id = a.job_id
+     JOIN users u ON u.id = a.user_id
      ORDER BY s.created_at DESC`
   );
   return rows;

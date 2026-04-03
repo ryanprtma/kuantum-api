@@ -40,7 +40,7 @@ export async function getDashboard(userId: string | null | undefined) {
   }));
 
   return {
-    user: user ? { name: user.name, email: user.email, roleTitle: user.role_title } : null,
+    user: user ? { name: user.name, email: user.email, role: user.role } : null,
     greetingName: user?.name || 'there',
     stats,
     jobHighlights: jobHighlights.map((j) => ({

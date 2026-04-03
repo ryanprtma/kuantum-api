@@ -21,3 +21,8 @@ export async function patch(req: Request, res: Response): Promise<void> {
   const row = await jobService.updateJob(req.params.id, (req.body || {}) as JobPatch);
   res.json(row);
 }
+
+export async function listApplications(req: Request, res: Response): Promise<void> {
+  const rows = await jobService.listApplicationsForJob(req.params.jobId);
+  res.json(rows);
+}
