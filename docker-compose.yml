@@ -11,7 +11,11 @@ services:
     volumes:
       - kuantum_api_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-kuantum}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-kuantum}",
+        ]
       interval: 3s
       timeout: 5s
       retries: 10
@@ -29,17 +33,5 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  ngrok:
-    image: ngrok/ngrok:latest
-    depends_on:
-      - api
-    command: http api:3001 --log=stdout
-    environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
-    ports:
-      - "${NGROK_DASHBOARD_PORT:-4040}:4040"
-    restart: unless-stopped
-
 volumes:
   kuantum_api_pgdata:
-
