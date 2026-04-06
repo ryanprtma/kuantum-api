@@ -237,6 +237,38 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/auth/logout": {
+      post: {
+        tags: ["Auth"],
+        summary: "Logout",
+        description:
+          "Tidak ada sesi server; klien menghapus penyimpanan X-User-Id. Header X-User-Id opsional (audit / ekstensi mendatang).",
+        parameters: [
+          {
+            name: "X-User-Id",
+            in: "header",
+            required: false,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "Konfirmasi logout",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    ok: { type: "boolean", example: true },
+                    message: { type: "string", example: "Logged out" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
     "/api/users/me": {
       get: {
         tags: ["Users"],

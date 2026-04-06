@@ -5,5 +5,6 @@ import * as authController from '../modules/auth/auth.controller.js';
 const r = Router();
 
 r.post('/api/auth/login', asyncHandler(authController.login));
+r.post('/api/auth/logout', asyncHandler(authController.logout));
 
 export default r;

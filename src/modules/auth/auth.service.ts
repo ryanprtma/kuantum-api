@@ -12,3 +12,15 @@ export async function login(body: { email?: string; name?: string }) {
     user,
   };
 }
+
+/**
+ * Logout is client-driven (hapus X-User-Id di localStorage).
+ * Endpoint ini idempotent dan tidak menyimpan sesi di server pada model auth saat ini.
+ */
+export async function logout(opts?: { userId?: string | null }) {
+  void opts?.userId;
+  return {
+    ok: true as const,
+    message: 'Logged out',
+  };
+}
