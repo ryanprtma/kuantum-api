@@ -17,5 +17,10 @@ r.get(
   requireUser,
   asyncHandler(controller.getMineDetail),
 );
+r.get(
+  "/api/applications/:applicationId/recommend-jobs",
+  requireUser,
+  asyncHandler(controller.getMineRecommendJobs),
+);
 
 export default r;

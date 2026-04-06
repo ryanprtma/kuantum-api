@@ -762,5 +762,35 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/applications/{applicationId}/recommend-jobs": {
+      get: {
+        tags: ["Applications"],
+        summary:
+          "sessionId, jobId, userId + hasil HR AI GET /result/recommend-jobs (opsional hrApplicationId)",
+        security: [{ UserId: [] }],
+        parameters: [
+          {
+            name: "applicationId",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+          {
+            name: "hrApplicationId",
+            in: "query",
+            required: false,
+            description:
+              "Override id untuk panggilan analyzer (mis. APP-SEEKER-001); default = applicationId",
+            schema: { type: "string" },
+          },
+        ],
+        responses: {
+          "200": { description: "Konteks lamaran + payload analyzer" },
+          "401": { description: "Tanpa X-User-Id" },
+          "404": { description: "Application tidak ditemukan" },
+          "502": { description: "Analyzer tidak dapat dijangkau / error" },
+        },
+      },
+    },
   },
 } as const;

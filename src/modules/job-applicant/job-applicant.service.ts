@@ -1,4 +1,5 @@
 import { AppError } from '../../shared/errors.js';
+import { HR_AI_ANALYZER_BASE_URL } from '../../config/env.js';
 import * as userRepo from '../user/user.repository.js';
 import * as sessionService from '../session/session.service.js';
 import * as sessionRepo from '../session/session.repository.js';
@@ -172,5 +173,64 @@ export async function getMineDetail(userId: string | null | undefined, applicati
       id: urls.accessCode.id,
       sessionCode: urls.accessCode.sessionCode,
     },
+  };
+}
+
+type AnalyzerRecommendJobsResponse = {
+  application_id?: string;
+  status?: string;
+  data?: {
+    recommendations?: unknown[];
+    total_recommended?: number;
+    ai_processing_time_seconds?: number;
+  };
+};
+
+/**
+ * Lamaran milik user + hasil `GET {HR_AI}/result/recommend-jobs/:id`.
+ * `hrApplicationId` mengoverride id yang dipanggil ke analyzer (mis. APP-SEEKER-001 vs UUID).
+ */
+export async function getJobRecommendationsForMine(
+  userId: string | null | undefined,
+  applicationId: string,
+  hrApplicationId?: string | null,
+) {
+  await ensureApplicantUser(userId);
+  const row = await jobApplicantRepo.findByIdAndUser(applicationId, userId as string);
+  if (!row) {
+    throw new AppError('Application not found', 404);
+  }
+  let sessionId = row.session_id ? String(row.session_id) : null;
+  if (!sessionId) {
+    sessionId = await sessionRepo.findSessionIdByJobApplicantId(applicationId);
+  }
+  const analyzerKey = (hrApplicationId && String(hrApplicationId).trim()) || applicationId;
+  const url = `${HR_AI_ANALYZER_BASE_URL}/result/recommend-jobs/${encodeURIComponent(analyzerKey)}`;
+  let analyzer: AnalyzerRecommendJobsResponse;
+  try {
+    const res = await fetch(url, { method: 'GET', headers: { Accept: 'application/json' } });
+    const body = (await res.json().catch(() => ({}))) as AnalyzerRecommendJobsResponse;
+    if (!res.ok) {
+      throw new AppError(
+        typeof (body as { error?: string }).error === 'string'
+          ? (body as { error: string }).error
+          : `Analyzer returned ${res.status}`,
+        502,
+      );
+    }
+    analyzer = body;
+  } catch (e) {
+    if (e instanceof AppError) throw e;
+    throw new AppError(
+      e instanceof Error ? e.message : 'Failed to reach job recommendations service',
+      502,
+    );
+  }
+  return {
+    sessionId,
+    jobId: String(row.job_id),
+    userId: String(row.user_id),
+    applicationId: String(row.id),
+    ...analyzer,
   };
 }

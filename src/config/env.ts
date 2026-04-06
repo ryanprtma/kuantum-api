@@ -42,6 +42,11 @@ export const EXTERNAL_INTERVIEW_INTERNAL_TOKEN = (
   process.env.EXTERNAL_INTERVIEW_INTERNAL_TOKEN || ''
 ).trim();
 
+/** Base URL HR AI Analyzer (Railway) — `GET /result/recommend-jobs/:applicationId`, dll. */
+export const HR_AI_ANALYZER_BASE_URL = stripTrailingSlash(
+  (process.env.HR_AI_ANALYZER_BASE_URL || 'https://hrisaianalyzer-production.up.railway.app').trim(),
+);
+
 export function externalTranscriptionHeaders(): Record<string, string> {
   const raw = process.env.EXTERNAL_TRANSCRIPTION_HEADERS_JSON;
   if (!raw) return {};

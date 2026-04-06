@@ -20,3 +20,14 @@ export async function getMineDetail(req: Request, res: Response): Promise<void> 
   const payload = await service.getMineDetail(req.userId, req.params.applicationId);
   res.json(payload);
 }
+
+export async function getMineRecommendJobs(req: Request, res: Response): Promise<void> {
+  const hrApplicationId =
+    typeof req.query.hrApplicationId === 'string' ? req.query.hrApplicationId : undefined;
+  const payload = await service.getJobRecommendationsForMine(
+    req.userId,
+    req.params.applicationId,
+    hrApplicationId,
+  );
+  res.json(payload);
+}
