@@ -23,6 +23,18 @@ export async function findSessionIdByJobApplicantId(jobApplicantId: string): Pro
   return rows[0]?.id ?? null;
 }
 
+/** Session paling baru untuk satu lamaran (`job_applicants.id`). */
+export async function findLatestSessionIdByJobApplicantId(jobApplicantId: string): Promise<string | null> {
+  const { rows } = await query<{ id: string }>(
+    `SELECT id::text AS id FROM interview_sessions
+     WHERE job_applicant_id = $1::uuid
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [jobApplicantId]
+  );
+  return rows[0]?.id ?? null;
+}
+
 export async function insertSession(params: {
   jobApplicantId: string;
   candidateId: string;

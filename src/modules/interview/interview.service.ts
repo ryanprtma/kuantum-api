@@ -1,5 +1,8 @@
+import { AppError } from '../../shared/errors.js';
 import * as sessionRepo from '../session/session.repository.js';
 import { mapSessionRowToInterviewItem } from './interview.mapper.js';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type InterviewListFilter = 'all' | 'completed';
 
@@ -60,4 +63,37 @@ export async function listInterviewsPaged(
     pageSize,
     totalPages,
   };
+}
+
+/**
+ * Integrasi eksternal: `applicationId` = `job_applicants.id`, ambil session terbaru, set status (saat ini hanya `completed`).
+ */
+export async function setLatestInterviewStatusByApplicationId(
+  applicationIdRaw: unknown,
+  statusRaw: unknown
+) {
+  const status = String(statusRaw || '')
+    .trim()
+    .toLowerCase();
+  if (status !== 'completed') {
+    throw new AppError('Query status must be completed', 400);
+  }
+
+  const applicationId =
+    typeof applicationIdRaw === 'string'
+      ? applicationIdRaw.trim()
+      : applicationIdRaw != null
+        ? String(applicationIdRaw).trim()
+        : '';
+  if (!applicationId || !UUID_RE.test(applicationId)) {
+    throw new AppError('applicationId must be a valid UUID (job_applicants.id)', 400);
+  }
+
+  const sessionId = await sessionRepo.findLatestSessionIdByJobApplicantId(applicationId);
+  if (!sessionId) {
+    throw new AppError('No interview session found for this application', 404);
+  }
+
+  await sessionRepo.updateStatus(sessionId, 'completed');
+  return { sessionId, applicationId, status: 'completed' as const };
 }
