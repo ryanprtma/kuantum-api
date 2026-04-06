@@ -8,7 +8,7 @@ export async function list(req: Request, res: Response): Promise<void> {
   res.json(payload);
 }
 
-/** `PATCH /api/interviews/:applicationId?status=completed` — UUID `job_applicants.id`. Wajib header token internal. */
+/** `PATCH /api/interviews/:applicationId?status=completed` — UUID `job_applicants.id`. Tanpa auth (integrasi eksternal). */
 export async function patchByApplication(req: Request, res: Response): Promise<void> {
   const payload = await interviewService.setLatestInterviewStatusByApplicationId(
     req.params.applicationId,
