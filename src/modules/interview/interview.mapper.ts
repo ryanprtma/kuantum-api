@@ -20,6 +20,7 @@ export function mapSessionRowToInterviewItem(r: Record<string, unknown>) {
   }
   return {
     id: r.id,
+    applicationId: r.job_applicant_id != null ? String(r.job_applicant_id) : '',
     name: r.name || 'Unknown',
     email: r.email || '',
     job: r.job_title,

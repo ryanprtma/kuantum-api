@@ -237,6 +237,7 @@ export async function listCompletedForJob(jobId: string, limit = 12) {
 export async function listForCandidates() {
   const { rows } = await query(
     `SELECT s.id, s.token, u.name, u.email,
+            a.id::text AS job_applicant_id,
             s.status, s.created_at, s.overall_score, s.candidate_id, s.interview_id, s.expires_at,
             j.title AS job_title,
             (SELECT t.ai_analysis FROM transcriptions t WHERE t.session_id = s.id ORDER BY t.created_at DESC LIMIT 1) AS last_analysis
